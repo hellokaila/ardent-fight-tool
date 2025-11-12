@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ardent Fight Tool — v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root { --bg:#0c0b09; --panel:#151310; --gold:#e3c981; --text:#fefcf6; --sub:#e7e1cf; --shadow:0 0 10px rgba(0,0,0,.4); --radius:12px; }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;margin:0}
+header{text-align:center;padding:16px}
+h1{font-family:"Cormorant Garamond",serif;color:var(--gold);margin:0;text-shadow:0 0 10px rgba(227,201,129,.4)}
+.wrap{max-width:1100px;margin:auto;padding:20px}
+.panel{background:#151310;border:1px solid rgba(227,201,129,.15);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin-bottom:14px}
+.fighter{margin-bottom:10px}
+label{font-size:.9rem;color:var(--sub)}
+input[type=text]{width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(227,201,129,.25);background:#0e0d0a;color:var(--text)}
+textarea{width:100%;min-height:150px;border-radius:6px;border:1px solid rgba(227,201,129,.25);background:#0e0d0a;color:var(--text);resize:vertical;font-family:ui-monospace,monospace}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.btn{background:linear-gradient(180deg,rgba(227,201,129,.3),rgba(227,201,129,.15));color:#1b1712;border:1px solid rgba(227,201,129,.4);border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.results{white-space:pre-wrap;background:#0e0d0a;border:1px solid rgba(227,201,129,.2);border-radius:8px;padding:10px;margin-top:10px}
+.checkbox-group{display:flex;gap:14px;margin:8px 0}
+.checkbox-group label{display:flex;align-items:center;gap:6px}
+.vs{text-align:center;color:var(--gold);font-weight:700;margin:10px 0}
+footer{opacity:.7;text-align:center;padding:10px;font-size:.8rem}
+.tiny{opacity:.85;font-size:.85rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ardent Fight Tool</h1>
+  <p style="color:var(--sub)">Paste fight forms, tick Bard/Trespass if present, verify Items/Specialties, then roll.</p>
+</header>
+
+<div class="wrap">
+  <div class="panel">
+    <div class="row">
+      <label>Title:</label>
+      <input id="title" type="text" placeholder="Oath vs Shadow">
+      <button class="btn" id="rollBtn">Practice Roll</button>
+      <button class="btn" id="sendBtn" disabled>Send final to Discord</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="panel" style="flex:1">
+      <h3 style="color:var(--gold);margin-top:0">Side A</h3>
+      <div id="leftList"></div>
+      <button class="btn" id="addLeft">+ Add Fighter</button>
+    </div>
+    <div class="vs">VS</div>
+    <div class="panel" style="flex:1">
+      <h3 style="color:var(--gold);margin-top:0">Side B</h3>
+      <div id="rightList"></div>
+      <button class="btn" id="addRight">+ Add Fighter</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3 style="color:var(--gold);margin-top:0">Results</h3>
+    <div id="results" class="results">No results yet.</div>
+  </div>
+</div>
+
+<footer>Crafted by Sinchanted</footer>
+
+<!-- RULES & SPECIALTIES -->
+<script type="application/json" id="rules-json">{
+  "age":{"Under6mo":{"TOTAL":-30},"Under1y":{"TOTAL":-15}},
+  "size":{"Toy":{"AGI":10},"XS":{"AGI":10},"Small":{"AGI":5},"Medium":{"ATK":5},"Large":{"DEF":5},"XL":{"DEF":5},"Titan":{"ATK":10},
+          "SmallSpecies":{"AGI":10},"LargeSpecies":{"ATK":10},"PaleoSpecies":{"ATK":10}},
+  "build":{"Emaciated":{"DEF":-5},"Light":{"AGI":5},"Balanced":{"ATK":5},"Heavy":{"DEF":5},"Obese":{"AGI":-5}},
+  "accessories":{"offensive":{"ATK":10},"defensive":{"DEF":10},"creepy_contacts":{"PER":10,"occupies":true}},
+  "companions":{"battle":{"base":{"ATK":10},"boosted_extra":{"ATK":10}},"flying":{"base":{"PER":10},"boosted_extra":{"PER":10}}},
+  "mutations":{"stacking":{"first":10,"extra_same_type":5},"exceptions_first_only":["AGI","PER"]},
+  "debuffs":{"ModerateInjury":{"TOTAL":-15},"MajorInjury":{"TOTAL":-30}},
+  "disabilities":{"Moderate":{"TOTAL":-15},"Major":{"TOTAL":-30}},
+  "skills":{
+    "Fighting":{"Intermediate":{"TOTAL":10},"Advanced":{"TOTAL":15},"Expert":{"TOTAL":20},"Master":{"TOTAL":25}},
+    "Hunting":{"Novice":{"ATK":5},"Intermediate":{"ATK":10},"Advanced":{"ATK":15},"Expert":{"ATK":20},"Master":{"ATK":25}},
+    "Healing":{"Novice":{"DEF":5},"Intermediate":{"DEF":10},"Advanced":{"DEF":15},"Expert":{"DEF":20},"Master":{"DEF":25}},
+    "Navigation":{"Novice":{"AGI":5},"Intermediate":{"AGI":10},"Advanced":{"AGI":15},"Expert":{"AGI":20},"Master":{"AGI":25}},
+    "Intellect":{"Novice":{"PER":5},"Intermediate":{"PER":10},"Advanced":{"PER":15},"Expert":{"PER":20},"Master":{"PER":25}}
+  },
+  "items":{
+    "Bonus5":{"TOTAL":5},"Bonus10":{"TOTAL":10},"PungentPotion":{"ATK":10},
+    "MushroomAcid":{"effect":"negate_one_opponent_acc_or_comp"},
+    "Equalizer":{"effect":"copy_opponent_form"},
+    "LuckyRabbitsFoot":{"effect":"advantage"},
+    "BlackCatsFoot":{"effect":"disadvantage"},
+    "SnakeOil":{"effect":"disability_downgrade"},
+    "TigerMask":{"effect":"temp_off_acc","ATK":10},
+    "AmethystMask":{"effect":"temp_def_acc","DEF":10}
+  }
+}</script>
+
+<script type="application/json" id="specialties-json">{
+  "Bard":{"AURA_TOTAL":10},
+  "Chaotic":{"mode":"ignore_all_bonuses_randomize"},
+  "Gambler":{"mode":"reroll_lowest_once"},
+  "HawkEyed":{"PER":30,"requires":{"flyingCompanion":true}},
+  "Unarmed":{"ATK":17.5,"DEF":17.5,"AGI":17.5,"PER":17.5,"requires":{"noArmorOrCompanions":true}},
+  "Weaponsmaster":{"ATK":20,"requires":{"offensiveAccessory":true}},
+  "Cooperative":{"TOTAL":30},
+  "Defender":{"DEF":50},
+  "Knight":{"ATK":40},
+  "Saboteur":{"TOTAL":30}
+}</script>
+
+<script>
+/* =========================
+   CONFIG — Relay endpoint
+   ========================= */
+const RELAY_URL = "https://nonsalubrious-coeternally-antony.ngrok-free.dev/post"; 
+
+/* ---- Player directory via local players.json ---- */
+const PLAYERS_URL = "./players.json?v=1";
+
+let PLAYER_LIST = [];
+let PLAYER_MAP  = new Map();
+
+async function loadPlayers(){
+  try{
+    const r = await fetch(PLAYERS_URL, { cache: "no-store" });
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    PLAYER_LIST = (data || [])
+      .filter(p => p && p.name && p.id)
+      .map(p => ({ name: String(p.name).trim(), id: String(p.id).trim() }))
+      .sort((a,b)=> a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    PLAYER_MAP.clear();
+    PLAYER_LIST.forEach(p => PLAYER_MAP.set(p.name.toLowerCase(), p.id));
+  }catch(err){
+    console.error("Failed to load players.json:", err);
+    PLAYER_LIST = [];
+    PLAYER_MAP.clear();
+  }
+}
+function hydratePlayerSelect(sel){
+  sel.innerHTML =
+    `<option value="">— Select player —</option>` +
+    PLAYER_LIST.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+}
+
+/* ---- UI helpers ---- */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const randInt=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const rand100=()=>randInt(1,100);
+const RULES=JSON.parse($('#rules-json').textContent);
+const SPECIALTIES=JSON.parse($('#specialties-json').textContent);
+function toast(m){const t=document.createElement('div');t.textContent=m;t.style.position='fixed';t.style.bottom='10px';t.style.left='50%';
+t.style.transform='translateX(-50%)';t.style.background='rgba(227,201,129,.9)';t.style.color='#201b13';t.style.padding='6px 10px';
+t.style.borderRadius='6px';document.body.appendChild(t);setTimeout(()=>t.remove(),1600);}
+
+function addFighter(side){
+  const wrap=document.createElement('div'); wrap.className='fighter panel';
+  wrap.innerHTML=`
+    <label>Name:</label>
+    <input type="text" class="nameInput" placeholder="Fighter Name">
+
+    <label>Player (Discord):</label>
+    <select class="playerSelect"></select>
+    <div class="tiny" style="margin-top:4px">Ping preview: <span class="pingPreview" style="color:var(--gold)">(none)</span></div>
+
+    <div class="checkbox-group">
+      <label><input type="checkbox" class="bard"> Bard Buff (+10%)</label>
+      <label><input type="checkbox" class="tres"> Trespass Buff (+5%)</label>
+    </div>
+
+    <label>Fight Form:</label>
+    <textarea class="formInput" placeholder="Paste full fight form here..."></textarea>
+
+    <div class="row">
+      <button class="btn parseBtn" type="button">Parse</button>
+      <button class="btn removeBtn" type="button">Remove</button>
+    </div>
+    <div class="results preview tiny">Not parsed yet.</div>`;
+  (side==='left'?$('#leftList'):$('#rightList')).appendChild(wrap);
+
+  wrap.querySelector('.removeBtn').onclick=()=>wrap.remove();
+  wrap.querySelector('.parseBtn').onclick=()=>parseFighter(wrap);
+
+  const sel = wrap.querySelector('.playerSelect');
+  hydratePlayerSelect(sel);
+  const pingPreview = wrap.querySelector('.pingPreview');
+  sel.addEventListener('change', ()=>{
+    const id = sel.value;
+    pingPreview.textContent = id ? `<@${id}>` : '(none)';
+  });
+}
+
+function parseForm(text){
+  const o={name:null,age:null,size:null,sizeSpecies:null,build:null,
+    accessories:{offensive:null,defensive:null,contacts:false},
+    companions:[],mutations:[],skills:[],specialty:null,items:[],
+    debuff:null,disability:null};
+
+  const lines=(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const getVal=(k)=>{const r=new RegExp('^'+k+'\\s*:\\s*(.+)$','i');const m=lines.find(l=>r.test(l));return m?m.match(r)[1].trim():null;};
+
+  const nameLine=lines.find(l=>/^Name\s*:/i.test(l)); if(nameLine) o.name=nameLine.split(':')[1].trim();
+
+  const ageRaw=getVal('Age'); if(ageRaw){const t=ageRaw.toLowerCase();if(/month/.test(t)){const m=parseFloat(t);o.age=(m<6)?'Under6mo':'Under1y';}else{const y=parseFloat(t);o.age=(y<1)?'Under1y':null;}}
+  const sizeRaw=getVal('Size'); if(sizeRaw){const s=sizeRaw.toLowerCase();
+    if(/toy/.test(s))o.size='Toy'; else if(/extra[-\s]?small|\bxs\b/.test(s))o.size='XS';
+    else if(/\bsmall\b(?! species)/.test(s))o.size='Small'; else if(/medium/.test(s))o.size='Medium';
+    else if(/extra[-\s]?large|\bxl\b/.test(s))o.size='XL'; else if(/\blarge\b(?! species)/.test(s))o.size='Large'; else if(/titan/.test(s))o.size='Titan';
+    if(/small species/.test(s))o.sizeSpecies='SmallSpecies'; if(/large species/.test(s))o.sizeSpecies='LargeSpecies'; if(/paleo/.test(s))o.sizeSpecies='PaleoSpecies';
+  }
+  const buildRaw=getVal('Build'); if(buildRaw){const b=buildRaw.toLowerCase();
+    if(/emaciated/.test(b))o.build='Emaciated'; else if(/light/.test(b))o.build='Light'; else if(/balanced/.test(b))o.build='Balanced'; else if(/heavy/.test(b))o.build='Heavy'; else if(/obese/.test(b))o.build='Obese';
+  }
+
+  const offRaw=getVal('Offensive Battle Accessory'); if(offRaw && !/^none|n\/a|—|-$/i.test(offRaw)) o.accessories.offensive=offRaw;
+  const defRaw=getVal('Defensive Battle Accessory'); if(defRaw && !/^none|n\/a|—|-$/i.test(defRaw)) o.accessories.defensive=defRaw;
+  if(lines.some(l=>/creepy\s*contacts/i.test(l))) o.accessories.contacts=true;
+
+  const compRx = /^\s*\*?\s*Companion(?:\s*[\dIVX]+)?\s*[:\-–—]\s*(.+)$/i;
+  lines.forEach(line => {
+    const m = line.match(compRx);
+    if (!m) return;
+    const raw = m[1].trim();
+    const isFlyingLike = /\b(flying|perception)\b/i.test(raw);
+    const type = isFlyingLike ? 'flying'
+           : /\bbattle\b/i.test(raw) ? 'battle'
+           : null;
+    if (!type) return;
+    const boosted = /\b(boosted|empowered|enhanced|trained)\b/i.test(raw);
+    o.companions.push({ type, boosted, label: raw });
+  });
+
+  lines.filter(l=>/^\*?\s*Mutation\s*\d+\s*:/i.test(l)).forEach(l=>{
+    const lower=l.toLowerCase(); const lane=/offensive/.test(lower)?'ATK':/defensive/.test(lower)?'DEF':/agility/.test(lower)?'AGI':/perception/.test(lower)?'PER':null;
+    if(lane) o.mutations.push({lane,label:l.split(':')[1]?.trim()||l.trim()});
+  });
+
+  const skillsRaw=getVal('Skills');
+  if(skillsRaw){
+    skillsRaw.split(/,|\&| and /i).map(s=>s.trim()).filter(Boolean).forEach(p=>{
+      const m=p.match(/(Novice|Intermediate|Advanced|Expert|Master)\s+(Fighter|Hunter|Healer|Navigator|Intellectual)/i);
+      if(m){
+        const rank=m[1].toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+        let name=m[2].toLowerCase();
+        const map={fighter:'Fighting',hunter:'Hunting',healer:'Healing',navigator:'Navigation',intellectual:'Intellect'};
+        name=map[name]||name; name=name.replace(/\b\w/g,c=>c.toUpperCase());
+        o.skills.push({name,rank});
+      }
+    });
+  }
+
+  const specRaw=getVal('Specialty'); if(specRaw){const tokens=specRaw.split(/,|\&|\+| and /i).map(s=>s.trim()); o.specialty=tokens[0]||null;}
+
+  const itemRaw=getVal('Item')||getVal('Items');
+  if(itemRaw){
+    const lower=itemRaw.toLowerCase();
+    if(/5%/.test(lower))o.items.push('Bonus5');
+    if(/10%/.test(lower))o.items.push('Bonus10');
+    if(/pungent/.test(lower))o.items.push('PungentPotion');
+    if(/equalizer/.test(lower))o.items.push('Equalizer');
+    if(/mushroom[- ]?based\s*acid|mushroom\s*acid/.test(lower))o.items.push('MushroomAcid');
+    if(/lucky\s*rabbit/.test(lower))o.items.push('LuckyRabbitsFoot');
+    if(/black\s*cat/.test(lower))o.items.push('BlackCatsFoot');
+    if(/snake\s*oil/.test(lower))o.items.push('SnakeOil');
+    if(/tiger\s*mask/.test(lower))o.items.push('TigerMask');
+    if(/amethyst\s*mask/.test(lower))o.items.push('AmethystMask');
+  }
+
+  const debRaw=getVal('Debuffs')||getVal('Injuries'); if(debRaw){if(/major/i.test(debRaw))o.debuff='MajorInjury'; else if(/moderate/i.test(debRaw))o.debuff='ModerateInjury';}
+  const disRaw=getVal('Disability')||getVal('Disabilities'); if(disRaw){if(/major/i.test(disRaw))o.disability='Major'; else if(/moderate/i.test(disRaw))o.disability='Moderate';}
+
+  return o;
+}
+
+function parseFighter(box){
+  const uiName=(box.querySelector('.nameInput').value||'').trim();
+  const form=box.querySelector('.formInput').value;
+  const pf=parseForm(form);
+
+  const selectedId = (box.querySelector('.playerSelect').value||'').trim();
+  const mention = selectedId ? `<@${selectedId}>` : '';
+
+  const parsed={
+    ...pf,
+    name: uiName || pf.name || 'Fighter',
+    items: pf.items || [],
+    bard: box.querySelector('.bard').checked,
+    trespass: box.querySelector('.tres').checked,
+    ping: mention,
+    formText: form
+  };
+
+  box.dataset.parsed=JSON.stringify(parsed);
+  box.querySelector('.preview').textContent =
+    `Parsed ${parsed.name} • Spec: ${parsed.specialty||'None'} • Bard:${parsed.bard?'Yes':'No'} • Trespass:${parsed.trespass?'Yes':'No'} • Items: ${parsed.items.join(', ')||'None'}`;
+}
+
+/* ---------- engine ---------- */
+const LANES=['ATK','DEF','AGI','PER'];
+function addLane(agg,obj){for(const k in obj){if(LANES.includes(k)) agg[k]+=obj[k];}}
+
+function applySpecialty(ff,lanePct,tPct){
+  const spec=(ff.specialty||'').trim(); if(!spec || !SPECIALTIES[spec]) return tPct;
+  const S=SPECIALTIES[spec];
+  if(S.mode) return tPct;
+
+  const hasOff=!!ff.accessories?.offensive;
+  const hasDef=!!ff.accessories?.defensive;
+  const hasAnyArmor=hasOff||hasDef||ff.accessories?.contacts;
+  const hasComp=(ff.companions||[]).length>0;
+  const hasFlying=(ff.companions||[]).some(c=>c.type==='flying');
+
+  if(S.requires){
+    if(S.requires.offensiveAccessory && !hasOff) return tPct;
+    if(S.requires.noArmorOrCompanions && (hasAnyArmor||hasComp)) return tPct;
+    if(S.requires.flyingCompanion && !hasFlying) return tPct;
+  }
+  addLane(lanePct,S);
+  if(S.TOTAL) tPct += S.TOTAL;
+  return tPct;
+}
+
+function computeFight(sides){
+  const res = { left:[], right:[] };
+  const firstOnly = new Set(RULES.mutations.exceptions_first_only || []);
+  function applyMutations(mutations, lanePct){
+    const counts = { ATK:0, DEF:0, AGI:0, PER:0 };
+    (mutations||[]).forEach(m => { if(m && counts.hasOwnProperty(m.lane)) counts[m.lane]++; });
+    const first = RULES.mutations.stacking.first;
+    const extra = RULES.mutations.stacking.extra_same_type;
+    Object.entries(counts).forEach(([lane, n])=>{
+      if(!n) return;
+      if(firstOnly.has(lane)) lanePct[lane] += first;
+      else lanePct[lane] += first + Math.max(0, n-1)*extra;
+    });
+  }
+
+  function rollFighter(f, side){
+    if (!f) return null;
+
+    if ((f.specialty||'').toLowerCase() === 'chaotic') {
+      const rolls = {}, laneBonusPct = {}, adjusted = {};
+      LANES.forEach(l => {
+        const base = rand100();
+        const pct  = randInt(1,100);
+        rolls[l] = base;
+        laneBonusPct[l] = pct;
+        adjusted[l] = +(base * (1 + pct/100)).toFixed(2);
+      });
+      const preTotal  = LANES.reduce((s,l)=>s + rolls[l], 0);
+      const baseTotal = LANES.reduce((s,l)=>s + adjusted[l], 0);
+
+      let totalPct = randInt(1,100);
+      if (f.bard)     totalPct += 10;
+      if (f.trespass) totalPct += 5;
+      totalPct = Math.min(100, totalPct);
+
+      const totalAdd = +(baseTotal * (totalPct/100)).toFixed(2);
+      const final    = +(baseTotal + totalAdd).toFixed(2);
+
+      const lines = [
+        `**${f.name}** (Chaotic)`,
+        `Attack Roll: ${rolls.ATK}`,
+        `Defense Roll: ${rolls.DEF}`,
+        `Agility Roll: ${rolls.AGI}`,
+        `Perception Roll: ${rolls.PER}`,
+        `Total: ${preTotal}`,
+        ``
+      ];
+      LANES.forEach(l=>{
+        const laneAdd = +(rolls[l] * (laneBonusPct[l]/100)).toFixed(2);
+        lines.push(`${l}[${rolls[l]}] + ${laneBonusPct[l]}% Bonus[${laneAdd.toFixed(2)}]: ${(rolls[l]+laneAdd).toFixed(2)}`);
+      });
+      lines.push(`Total[${baseTotal.toFixed(2)}] + ${totalPct}% Bonus[${totalAdd.toFixed(2)}]: ${final.toFixed(2)}\n`);
+      return { fighter:f, finalTotal:final, text:lines.join('\n') };
+    }
+
+    let ff = JSON.parse(JSON.stringify(f));
+    const opp = side === 'left' ? (sides.right[0] || null) : (sides.left[0] || null);
+    if (f.items?.includes('Equalizer') && opp) {
+      const clone = JSON.parse(JSON.stringify(opp));
+      clone.items = (clone.items||[]).filter(x => x !== 'Equalizer');
+      ff = clone;
+      ff.name = (f.name || 'You') + ` (Equalized ${opp.name || 'opponent'})`;
+    }
+
+    const lanePct = { ATK:0, DEF:0, AGI:0, PER:0 };
+    let tPct = 0;
+
+    if (ff.age  && RULES.age[ff.age])                     tPct += RULES.age[ff.age].TOTAL;
+    if (ff.size && RULES.size[ff.size])                   addLane(lanePct, RULES.size[ff.size]);
+    if (ff.sizeSpecies && RULES.size[ff.sizeSpecies])     addLane(lanePct, RULES.size[ff.sizeSpecies]);
+    if (ff.build && RULES.build[ff.build])                addLane(lanePct, RULES.build[ff.build]);
+
+    const hasOff = !!ff.accessories?.offensive;
+    const hasDef = !!ff.accessories?.defensive;
+    if (ff.accessories?.contacts) lanePct.PER += RULES.accessories.creepy_contacts.PER;
+    if (hasOff) lanePct.ATK += RULES.accessories.offensive.ATK;
+    else if (ff.items?.includes('TigerMask')) lanePct.ATK += RULES.items.TigerMask.ATK;
+    if (hasDef) lanePct.DEF += RULES.accessories.defensive.DEF;
+    else if (ff.items?.includes('AmethystMask')) lanePct.DEF += RULES.items.AmethystMask.DEF;
+
+    (ff.companions||[]).forEach(c=>{
+      if (c.type === 'battle') {
+        lanePct.ATK += RULES.companions.battle.base.ATK + (c.boosted ? RULES.companions.battle.boosted_extra.ATK : 0);
+      }
+      if (c.type === 'flying' || c.type === 'perception') {
+        lanePct.PER += RULES.companions.flying.base.PER + (c.boosted ? RULES.companions.flying.boosted_extra.PER : 0);
+      }
+    });
+
+    applyMutations(ff.mutations, lanePct);
+
+    (ff.skills||[]).forEach(s=>{
+      const table = RULES.skills[s.name];
+      if (table && table[s.rank]) {
+        addLane(lanePct, table[s.rank]);
+        if (table[s.rank].TOTAL) tPct += table[s.rank].TOTAL;
+      }
+    });
+
+    if (ff.items?.includes('PungentPotion')) lanePct.ATK += RULES.items.PungentPotion.ATK;
+    if (ff.items?.includes('Bonus5'))        tPct += RULES.items.Bonus5.TOTAL;
+    if (ff.items?.includes('Bonus10'))       tPct += RULES.items.Bonus10.TOTAL;
+
+    if (ff.debuff && RULES.debuffs[ff.debuff]) tPct += RULES.debuffs[ff.debuff].TOTAL;
+    let disability = ff.disability;
+    if (ff.items?.includes('SnakeOil')) {
+      if (disability === 'Major') disability = 'Moderate';
+      else if (disability === 'Moderate') disability = null;
+    }
+    if (disability && RULES.disabilities[disability]) tPct += RULES.disabilities[disability].TOTAL;
+
+    if (f.items?.includes('MushroomAcid') && opp) {
+      if (opp.accessories?.offensive)        lanePct.ATK -= RULES.accessories.offensive.ATK;
+      else if (opp.accessories?.defensive)   lanePct.DEF -= RULES.accessories.defensive.DEF;
+      else if (opp.companions?.[0]) {
+        const c = opp.companions[0];
+        if (c.type === 'battle')
+          lanePct.ATK -= (RULES.companions.battle.base.ATK + (c.boosted ? RULES.companions.battle.boosted_extra.ATK : 0));
+        if (c.type === 'flying' || c.type === 'perception')
+          lanePct.PER -= (RULES.companions.flying.base.PER + (c.boosted ? RULES.companions.flying.boosted_extra.PER : 0));
+      }
+    }
+
+    const rawRolls = {};
+    LANES.forEach(l=>{
+      const adv = f.items?.includes('LuckyRabbitsFoot');
+      const dis = f.items?.includes('BlackCatsFoot');
+      if (adv) { const a=rand100(), b=rand100(); rawRolls[l] = Math.max(a,b); }
+      else if (dis) { const a=rand100(), b=rand100(); rawRolls[l] = Math.min(a,b); }
+      else { rawRolls[l] = rand100(); }
+    });
+    if ((ff.specialty||'') === 'Gambler') {
+      const entries = LANES.map(l=>[l,rawRolls[l]]).sort((a,b)=>a[1]-b[1]);
+      const lowLane = entries[0][0];
+      const re = rand100();
+      if (re > rawRolls[lowLane]) rawRolls[lowLane] = re;
+    }
+
+    tPct = applySpecialty(ff, lanePct, tPct);
+
+    if (f.bard)     tPct += 10;
+    if (f.trespass) tPct += 5;
+
+    const preTotal = LANES.reduce((s,l)=>s + rawRolls[l], 0);
+    const laneAdds = {};
+    const laneFinals = {};
+    LANES.forEach(l=>{
+      laneAdds[l]   = +(rawRolls[l] * (lanePct[l]/100)).toFixed(2);
+      laneFinals[l] = +(rawRolls[l] + laneAdds[l]).toFixed(2);
+    });
+    const baseTotal = +(LANES.reduce((s,l)=>s + laneFinals[l], 0)).toFixed(2);
+    const totalAdd  = +(baseTotal * (tPct/100)).toFixed(2);
+    const final     = +(baseTotal + totalAdd).toFixed(2);
+
+    const laneNames = { ATK:'Attack', DEF:'Defense', AGI:'Agility', PER:'Perception' };
+    const lines = [
+      `**${f.name}**`,
+      `Attack Roll: ${rawRolls.ATK}`,
+      `Defense Roll: ${rawRolls.DEF}`,
+      `Agility Roll: ${rawRolls.AGI}`,
+      `Perception Roll: ${rawRolls.PER}`,
+      `Total: ${preTotal}`,
+      ``
+    ];
+    LANES.forEach(l=>{
+      lines.push(`${laneNames[l]}[${rawRolls[l]}] + ${lanePct[l].toFixed(1)}% Bonus[${laneAdds[l].toFixed(2)}]: ${laneFinals[l].toFixed(2)}`);
+    });
+    lines.push(`Total[${baseTotal.toFixed(2)}] + ${tPct.toFixed(1)}% Bonus[${totalAdd.toFixed(2)}]: ${final.toFixed(2)}\n`);
+
+    return { fighter:f, finalTotal:final, text:lines.join('\n') };
+  }
+
+  res.left  = sides.left.map(f=>rollFighter(f,'left')).filter(Boolean);
+  res.right = sides.right.map(f=>rollFighter(f,'right')).filter(Boolean);
+  return res;
+}
+
+/* ---------- Build Discord payload ---------- */
+function sanitizeBackticks(s=''){ return String(s).replace(/```/g,'ʼʼʼ'); }
+function chunk(str, n){ const out=[]; for(let i=0;i<str.length;i+=n) out.push(str.slice(i,i+n)); return out; }
+
+function buildEmbedsForDiscord(title, res, sides){
+  const embeds = [];
+  const all = [...res.left, ...res.right];
+  const winner = all.reduce((a,b)=>a.finalTotal>=b.finalTotal?a:b);
+
+  const sideBlock = (list) =>
+    list.map(r => `— **${r.fighter.name}**\n${"```"}\n${r.text.replace(/\*|\`/g,'')}${"```"}`).join("\n");
+
+  const summary = `**Winner:** ${winner.fighter.name}\n\n__Side A__\n${sideBlock(res.left)}\n\n__Side B__\n${sideBlock(res.right)}`;
+  const partsSummary = chunk(summary, 3800);
+  partsSummary.forEach((part, idx) => {
+    embeds.push({
+      title: idx === 0 ? title : `${title} (cont.)`,
+      color: 0xC8A74F,
+      description: part
+    });
+  });
+
+  const fighters = [...sides.left, ...sides.right];
+  fighters.forEach(f => {
+    const form = sanitizeBackticks(f.formText || "(no form provided)");
+    const parts = chunk(form, 3800);
+    parts.forEach((p, i) => {
+      embeds.push({
+        title: `Fight Form — ${f.name}${parts.length>1?` (Part ${i+1})`:''}`,
+        color: 0x6b5b32,
+        description: "```" + p + "```"
+      });
+    });
+  });
+
+  if (embeds.length > 10) {
+    const keep = embeds.slice(0, 9);
+    keep.push({
+      title: "Additional Content Truncated",
+      color: 0xAA3333,
+      description: "Too many/long forms to include; see the judge UI for full text."
+    });
+    return keep;
+  }
+  return embeds;
+}
+
+function collectPings(sides){
+  const p = new Set();
+  [...sides.left, ...sides.right].forEach(f => {
+    if (f.ping && /\<\@\d+\>/.test(f.ping)) p.add(f.ping);
+  });
+  return Array.from(p).join(" ");
+}
+
+/* ---------- Relay send ---------- */
+async function sendFinalToDiscord(title, sides, res){
+  if (!/^https:\/\//i.test(RELAY_URL)) {
+    toast('Relay must be HTTPS (browser blocks http)');
+    throw new Error('Relay not HTTPS');
+  }
+  const content = collectPings(sides);
+  const embeds  = buildEmbedsForDiscord(title, res, sides);
+  const r = await fetch(RELAY_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ content, embeds })
+  });
+  const txt = await r.text();
+  if (!r.ok) throw new Error(`Relay ${r.status}: ${txt || 'unknown error'}`);
+  toast('Final roll posted to Discord');
+}
+
+/* ---------- Wire up ---------- */
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadPlayers();
+  addFighter('left');
+  addFighter('right');
+  $('#addLeft').onclick  = ()=>addFighter('left');
+  $('#addRight').onclick = ()=>addFighter('right');
+  
+  function getSidesAutoParsed(){
+  // auto-parse any fighter boxes that haven't been parsed yet
+  $$('#leftList .fighter, #rightList .fighter').forEach(box=>{
+    if (!box.dataset.parsed) parseFighter(box);
+  });
+  const left  = $$('#leftList .fighter').map(b => JSON.parse(b.dataset.parsed || '{}')).filter(f=>f.name);
+  const right = $$('#rightList .fighter').map(b => JSON.parse(b.dataset.parsed || '{}')).filter(f=>f.name);
+  return { left, right };
+}
+
+// Practice roll
+$('#rollBtn').onclick = () => {
+  const title = $('#title').value || 'Untitled Fight';
+  const sides = getSidesAutoParsed();
+  if (!sides.left.length || !sides.right.length){
+    toast('Add & parse at least one fighter on each side'); return;
+  }
+  const res = computeFight(sides);
+  const all = [...res.left, ...res.right];
+  const winner = all.reduce((a,b)=>a.finalTotal>=b.finalTotal?a:b);
+  $('#results').textContent =
+    `**${title}**\n\n${res.left.map(r=>r.text).join('\n')}\n${res.right.map(r=>r.text).join('\n')}\n**Winner: ${winner.fighter.name}!**`;
+  $('#sendBtn').disabled = false;
+};
+
+// Final roll → send via relay
+$('#sendBtn').onclick = async () => {
+  const title = $('#title').value || 'Untitled Fight';
+  const sides = getSidesAutoParsed();
+  if (!sides.left.length || !sides.right.length){
+    toast('Add & parse at least one fighter on each side'); return;
+  }
+  const res = computeFight(sides);
+  const all = [...res.left, ...res.right];
+  const winner = all.reduce((a,b)=>a.finalTotal>=b.finalTotal?a:b);
+  $('#results').textContent =
+    `**${title}**\n\n${res.left.map(r=>r.text).join('\n')}\n${res.right.map(r=>r.text).join('\n')}\n**Winner: ${winner.fighter.name}!**`;
+  try {
+    await sendFinalToDiscord(title, sides, res);
+  } catch (e) {
+    console.error(e);
+    toast('Webhook failed (check relay & HTTPS)');
+  }
+};
+});
+</script>
+</body>
+</html>
